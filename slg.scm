@@ -376,17 +376,13 @@
       ; Continue, or end the generation here
       (begin
         (print-state sent links chosen)
-        (if (add-more-words? chosen sent)
+        ; Every single word has to be explored once (and only once),
+        ; to make sure the usage is complete
+        (if (< (length chosen) (length sent))
           (generate sent links chosen left-wall-added?)
           (begin
             (set! complete? #t)
             (set! sentence sent)))))))
-
-; For determining if more words should be added
-; The stopping conditions, either:
-; - Every single word has been explored
-(define (add-more-words? chosen sent)
-  (< (length chosen) (length sent)))
 
 ; ---------- Utilities ---------- ;
 ; For debugging
