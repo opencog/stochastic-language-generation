@@ -18,22 +18,9 @@
 ; The LEFT-WALL (the beginning of a sentence)
 (define left-wall "###LEFT-WALL###")
 
-; A 'stack' of states, for backtracking
-(define states (list))
-(define (clear-states) (set! states (list)))
-(define (push-state s) (set! states (append states (list s))))
-(define (pop-state) (set! states (list-head states (1- (length states)))))
-(define (last-state) (car (last-pair states)))
-(define (get-sent) (list-ref (last-state) 0))
-(define (get-links) (list-ref (last-state) 1))
-(define (get-chosen) (list-ref (last-state) 2))
-(define (get-lw-added?) (list-ref (last-state) 3))
-
-; An association list of ((word . idx) . remaining-sections),
-; will be used during backtracking to avoid getting stuck
-; indefinitely when the same (and locally valid) Section
-; is chosen over and over again
-(define alist (list))
+; Some internal states
+(define complete? #f)
+(define sentence (list))
 
 ; ---------- The Entry ---------- ;
 (define (slg . seeds)
@@ -52,42 +39,37 @@
   The generation will start from left (LEFT-WALL) to right
   if no word has been passed as SEEDS.
 "
-  ; Make sure there is no leftover from previous generation
-  (clear-states)
-  (set! alist (list))
+  ; Reset the states
+  (set! complete? #f)
+  (set! sentence (list))
 
-  ; Push the initial state into the stack
-  (push-state
-    (list
-      (map
-        WordNode
-        ; If no seed is given,
-        ; start generating from the LEFT-WALL
-        (if (null? seeds) (list left-wall) seeds))
-      (list)
-      (list)
-      (null? seeds)))
+  ; Start the actual generation
+  (generate
+    (map
+      WordNode
+      ; If no seed is given,
+      ; start generating from the LEFT-WALL
+      (if (null? seeds) (list left-wall) seeds))
+    (list)
+    (list)
+    (null? seeds))
 
-  (apply generate (last-state)))
+  ; Return the result
+  (if (not complete?)
+    (begin
+      (format #t "Unable to generate a sentence with the given seed(s)!\n")
+      (list))
+    (string-join (map cog-name sentence))))
 
 ; ---------- Main ---------- ;
 ; Will be called recursively until the generation is complete
 (define (generate words links chosen left-wall?)
-  (add-words
-    ; Randomly pick one word-index that has not been explored
-    (rand-pick (lset-difference = (iota (length words)) chosen))
-    words
-    links
-    chosen
-    left-wall?))
-
-; The main function for adding words to the sentence
-(define (add-words germ-idx sent links chosen left-wall-added?)
-  ; Make a copy of the germ-idx, will need it when we backtrack
-  (define germ-idx-copy germ-idx)
+  ; Randomly pick one word-index that has not been explored
+  (define germ-idx
+    (rand-pick (lset-difference = (iota (length words)) chosen)))
 
   ; Get the actual germ
-  (define germ (list-ref sent germ-idx))
+  (define germ (list-ref words germ-idx))
 
   ; Get all the Sections with this germ
   (define sections (get-germ-sections germ))
@@ -108,12 +90,12 @@
           ((= germ-idx (car l))
            (list
              (Connector
-               (list-ref sent (cdr l))
+               (list-ref words (cdr l))
                (ConnectorDir "+"))))
           ((= germ-idx (cdr l))
            (list
              (Connector
-               (list-ref sent (car l))
+               (list-ref words (car l))
                (ConnectorDir "-"))))
           (else (list))))
       links))
@@ -128,65 +110,33 @@
           target-cntrs))
       sections))
 
-  ; Some internal states
+  ; For picking a Section based on their weights
+  (define (pick-section candidate-sections)
+    (weighted-pick
+      candidate-sections
+      (map
+        (lambda (s) (cog-tv-count (cog-tv s)))
+        candidate-sections)))
+
+  (format #t "\n>> ~a (~d) <<\n" (cog-name germ) germ-idx)
+  (format #t "Remaining Sections = ~d\n" (length filtered-sections))
+
+  (while (not (or complete? (null? filtered-sections)))
+    (let ((section (pick-section filtered-sections)))
+      (add-words section target-cntrs germ-idx words links chosen left-wall?)
+
+      (if (not complete?)
+        (begin
+          ; The Section picked got rejected, try a different one!
+          (format #t "==================== Backtracking!\n")
+          (print-state words links chosen)
+          (set! filtered-sections (delete section filtered-sections))
+          (format #t "\n>> ~a (~d) <<\n" (cog-name germ) germ-idx)
+          (format #t "Remaining Sections = ~d\n" (length filtered-sections)))))))
+
+; For adding words from a Section to the sentence
+(define (add-words section target-cntrs germ-idx sent links chosen left-wall-added?)
   (define reject-section? #f)
-  (define backtrack? #f)
-
-  ; Pick one of the Sections and try to add the connector-words
-  ; to the sentence while fulfilling the no-link-cross constraint
-  (define (pick-and-add sections)
-    (if (null? sections)
-      ; Backtrack to a previous point if no more Section can be selected
-      (set! backtrack? #t)
-      ; Select one of the Sections based on their frequency
-      ; TODO: Replace it with a MI-based selection
-      (let ((section
-              (weighted-pick
-                sections
-                (map (lambda (s) (cog-tv-count (cog-tv s))) sections))))
-        (format #t "\n>> ~a (~d) <<\n" (cog-name germ) germ-idx)
-        (format #t "Remaining Sections = ~d\n" (length sections))
-
-        (set! alist
-          (assoc-set! alist (cons germ germ-idx) (delete section sections)))
-
-        ; Now try to add each of the words from that Section one by one
-        ; while making sure that there is no link crossed with the existing ones
-        (receive (l-cntrs r-cntrs)
-          ; Partition the conntectors into two list:
-          ; the left ("-") and the right ("+"), for convenience
-          (partition
-            (lambda (cntr) (string=? "-" (cog-name (gdr cntr))))
-            (cog-outgoing-set (gdr section)))
-
-          ; First of all, go through the left connectors and see if it's possible
-          ; to add those words to the left of this germ
-          ; The order of the left connectors, as sorted in a Section,
-          ; goes from far to near
-          (add-to-left
-            l-cntrs
-            ; If a LEFT-WALL has been added to the sentence, start exploring
-            ; from position 1 (i.e. after the LEFT-WALL)
-            (if left-wall-added? 1 0))
-
-          ; Then go through the right connectors
-          ; The order of the right connectors, as sorted in a Section,
-          ; goes from near to far
-          (if (not reject-section?)
-            (add-to-right r-cntrs (1+ germ-idx))))
-
-        (if reject-section?
-          (begin
-            (set! reject-section? #f)
-            (set! germ-idx germ-idx-copy)
-            (set! sent (get-sent))
-            (set! chosen (get-chosen))
-            (set! links (get-links))
-            (set! left-wall-added? (get-lw-added?))
-            (format #t "==================== Rejecting the Section!\n")
-            (print-current-state)
-            (pick-and-add (delete section sections)))
-          (set! chosen (insert-at chosen germ-idx))))))
 
   ; For adding words to the left of the germ
   (define (add-to-left l-cntrs from-idx)
@@ -291,8 +241,7 @@
                     (insert-at
                       (update-links links pos-picked)
                       (cons pos-picked (1+ germ-idx))))
-                  (set! chosen
-                    (map (lambda (i) (update-index i pos-picked)) chosen))
+                  (set! chosen (map (lambda (i) (update-index i pos-picked)) chosen))
                   ; Was that the LEFT-WALL?
                   (if (equal? left-wall (cog-name (gar l-cntr)))
                     (set! left-wall-added? #t))
@@ -391,56 +340,65 @@
                     (insert-at
                       (update-links links pos-picked)
                       (cons germ-idx pos-picked)))
-                  (set! chosen
-                    (map (lambda (i) (update-index i pos-picked)) chosen))
+                  (set! chosen (map (lambda (i) (update-index i pos-picked)) chosen))
                   ; Continue, from the right of this word
                   (add-to-right (cdr r-cntrs) (1+ pos-picked))))))))))
 
-  ; Try to add the words
-  (pick-and-add
-    ; Check if we are backtracking at the moment,
-    ; and pick a different Section than the one chosen
-    ; before if that's the case
-    (if (assoc-ref alist (cons germ germ-idx))
-      (assoc-ref alist (cons germ germ-idx))
-      filtered-sections))
+  ; Try to add each of the words from that Section one by one while
+  ; making sure that there is no link crossed with the existing ones
+  (receive (l-cntrs r-cntrs)
+    ; Partition the conntectors into two list:
+    ; the left ("-") and the right ("+"), for convenience
+    (partition
+      (lambda (cntr) (string=? "-" (cog-name (gdr cntr))))
+      (cog-outgoing-set (gdr section)))
 
-  (if backtrack?
-    (begin
-      (pop-state)
-      (set! alist (assoc-remove! alist (cons germ germ-idx)))
-      (if (> (length states) 0)
-        (begin
-          (format #t "==================== Backtracking!\n")
-          (print-current-state))))
-    (begin
-      (push-state (list sent links chosen left-wall-added?))
-      (print-current-state)))
+    ; Record the chosen index (word) that we are exploring now
+    (set! chosen (append chosen (list germ-idx)))
 
-  ; Continue, or end the generation here
-  (if (= 0 (length states))
-    (format #t "Unable to generate a sentence with the given seed(s)!\n")
-    (if (add-more-words?)
-      (apply generate (last-state))
-      (get-sent))))
+    ; First of all, go through the left connectors and see if it's possible
+    ; to add those words to the left of this germ
+    ; The order of the left connectors, as sorted in a Section,
+    ; goes from far to near
+    (add-to-left
+      l-cntrs
+      ; If a LEFT-WALL has been added to the sentence, start exploring
+      ; from position 1 (i.e. after the LEFT-WALL)
+      (if left-wall-added? 1 0))
+
+    ; Then go through the right connectors
+    ; The order of the right connectors, as sorted in a Section,
+    ; goes from near to far
+    (if (not reject-section?)
+      (add-to-right r-cntrs (1+ germ-idx)))
+
+    (if (not reject-section?)
+      ; Continue, or end the generation here
+      (begin
+        (print-state sent links chosen)
+        (if (add-more-words? chosen sent)
+          (generate sent links chosen left-wall-added?)
+          (begin
+            (set! complete? #t)
+            (set! sentence sent)))))))
 
 ; For determining if more words should be added
 ; The stopping conditions, either:
 ; - Every single word has been explored
-(define (add-more-words?)
-  (< (length (get-chosen)) (length (get-sent))))
+(define (add-more-words? chosen sent)
+  (< (length chosen) (length sent)))
 
 ; ---------- Utilities ---------- ;
 ; For debugging
-(define (print-current-state)
-  (format #t "Sentence: ~a\n" (map cog-name (get-sent)))
+(define (print-state sent links chosen)
+  (format #t "Sentence: ~a\n" (map cog-name sent))
   (format #t "Links: ~a\n"
-    (sort (get-links)
+    (sort links
       (lambda (x y)
         (if (= (car x) (car y))
           (< (cdr x) (cdr y))
           (< (car x) (car y))))))
-  (format #t "Chosen: ~a\n" (sort (get-chosen) <)))
+  (format #t "Chosen: ~a\n" (sort chosen <)))
 
 ; Generate a random number in [0, n)
 (define (rand-num n)
