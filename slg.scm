@@ -10,9 +10,9 @@
 ; instead of creating a new one
 (define prob-link-exist 1)
 
-; How many words the sentence should have (not being used yet)
+; Max. no. of words the sentence can have
 ; A negative value means it's unlimited
-(define word-limit -1)
+(define max-words 10)
 
 ; ---------- Shared ---------- ;
 ; The LEFT-WALL (the beginning of a sentence)
@@ -371,6 +371,11 @@
     ; goes from near to far
     (if (not reject-section?)
       (add-to-right r-cntrs (1+ germ-idx)))
+
+    ; Stopping condition(s)
+    (set! reject-section?
+      (or reject-section?
+          (> (length sent) max-words)))
 
     (if (not reject-section?)
       ; Continue, or end the generation here
