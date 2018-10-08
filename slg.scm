@@ -63,13 +63,13 @@
 
 ; ---------- Main ---------- ;
 ; Will be called recursively until the generation is complete
-(define (generate words links chosen left-wall?)
+(define (generate sent links chosen left-wall?)
   ; Randomly pick one word-index that has not been explored
   (define germ-idx
-    (rand-pick (lset-difference = (iota (length words)) chosen)))
+    (rand-pick (lset-difference = (iota (length sent)) chosen)))
 
   ; Get the actual germ
-  (define germ (list-ref words germ-idx))
+  (define germ (list-ref sent germ-idx))
 
   ; Get all the Sections with this germ
   (define sections (get-germ-sections germ))
@@ -90,12 +90,12 @@
           ((= germ-idx (car l))
            (list
              (Connector
-               (list-ref words (cdr l))
+               (list-ref sent (cdr l))
                (ConnectorDir "+"))))
           ((= germ-idx (cdr l))
            (list
              (Connector
-               (list-ref words (car l))
+               (list-ref sent (car l))
                (ConnectorDir "-"))))
           (else (list))))
       links))
@@ -123,13 +123,13 @@
 
   (while (not (or complete? (null? filtered-sections)))
     (let ((section (pick-section filtered-sections)))
-      (add-words section target-cntrs germ-idx words links chosen left-wall?)
+      (add-words section target-cntrs germ-idx sent links chosen left-wall?)
 
       (if (not complete?)
         (begin
           ; The Section picked got rejected, try a different one!
           (format #t "==================== Backtracking!\n")
-          (print-state words links chosen)
+          (print-state sent links chosen)
           (set! filtered-sections (delete section filtered-sections))
           (format #t "\n>> ~a (~d) <<\n" (cog-name germ) germ-idx)
           (format #t "Remaining Sections = ~d\n" (length filtered-sections)))))))
@@ -375,7 +375,8 @@
     ; Stopping condition(s)
     (set! reject-section?
       (or reject-section?
-          (> (length sent) max-words)))
+        ; Cannot have more than 'max-words'
+        (> (length sent) max-words)))
 
     (if (not reject-section?)
       ; Continue, or end the generation here
