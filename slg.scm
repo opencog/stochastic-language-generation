@@ -59,7 +59,18 @@
     (begin
       (format #t "Unable to generate a sentence with the given seed(s)!\n")
       (list))
-    (string-join (map cog-name sentence))))
+    (string-join
+      (map
+        (lambda (w)
+          (cond
+            ; If it's a (WordNode . WordClassNode) pair, pick the WordNode
+            ((pair? w) (cog-name (car w)))
+            ; If it's a WordClassNode, pick a WordNode from that class
+            ((equal? 'WordClassNode (cog-type w))
+             (cog-name (pick-word-from-class w)))
+            ; Otherwise, it's a WordNode so just get the name of it
+            (else (cog-name w))))
+        sentence))))
 
 ; ---------- Main ---------- ;
 ; Will be called recursively until the generation is complete
@@ -69,10 +80,28 @@
     (rand-pick (lset-difference = (iota (length sent)) chosen)))
 
   ; Get the actual germ
+  ; This could be a (WordNode . WordClassNode) pair sometimes,
+  ; and it happens when both the word and the word-class has
+  ; already been selected in the previous iteration, so we'll
+  ; have to stick with them strictly
   (define germ (list-ref sent germ-idx))
 
   ; Get all the Sections with this germ
-  (define sections (get-germ-sections germ))
+  ; The germ may be a member of one or more word-classes,
+  ; get those Sections as well, assuming the format remains:
+  ;   MemberLink
+  ;     WordNode
+  ;     WordClassNode
+  ; and the germ connects to all of the word-classes it belongs
+  ; to even if the word-classes may be hierarchical in structure
+  (define sections
+    (if (pair? germ)
+      (map get-germ-sections (list (car germ) (cdr germ)))
+      (append-map
+        get-germ-sections
+        (append
+          (list germ)
+          (cog-chase-link 'MemberLink 'WordClassNode germ)))))
 
   ; Get the connectors that a Section should have, e.g.
   ; if we already have W1 linking to W2:
@@ -88,15 +117,29 @@
       (lambda (l)
         (cond
           ((= germ-idx (car l))
-           (list
-             (Connector
-               (list-ref sent (cdr l))
-               (ConnectorDir "+"))))
+           (let ((w (list-ref sent (cdr l))))
+             ; If it's a WordNode-WordClassNode pair
+             ; make this target connector as a pair, and
+             ; the Sections we want only need to have either
+             ; one of them
+             (if (pair? w)
+               (list
+                 (cons
+                   (Connector (car w) (ConnectorDir "+"))
+                   (Connector (cdr w) (ConnectorDir "+"))))
+               (list (Connector w (ConnectorDir "+"))))))
           ((= germ-idx (cdr l))
-           (list
-             (Connector
-               (list-ref sent (car l))
-               (ConnectorDir "-"))))
+           (let ((w (list-ref sent (car l))))
+             ; If it's a WordNode-WordClassNode pair
+             ; make this target connector as a pair, and
+             ; the Sections we want only need to have either
+             ; one of them
+             (if (pair? w)
+               (list
+                 (cons
+                   (Connector (car w) (ConnectorDir "-"))
+                   (Connector (cdr w) (ConnectorDir "-"))))
+               (list (Connector w (ConnectorDir "-"))))))
           (else (list))))
       links))
 
@@ -106,7 +149,11 @@
       (lambda (section)
         (define s-cntrs (cog-outgoing-set (gdr section)))
         (every
-          (lambda (t-cntr) (member t-cntr s-cntrs))
+          (lambda (t-cntr)
+            (if (pair? t-cntr)
+              (or (member (car t-cntr) s-cntrs)
+                  (member (cdr t-cntr) s-cntrs))
+              (member t-cntr s-cntrs)))
           target-cntrs))
       sections))
 
@@ -123,7 +170,15 @@
 
   (while (not (or complete? (null? filtered-sections)))
     (let ((section (pick-section filtered-sections)))
-      (add-words section target-cntrs germ-idx sent links chosen left-wall?)
+      (if (and (equal? 'WordClassNode (cog-type (gar section)))
+               (equal? 'WordNode (cog-type germ)))
+        ; If the 'germ' being passed is a word, while the actual germ of
+        ; the Section selected is a word-class, record both the word
+        ; and the word-class as a pair
+        (add-words section target-cntrs germ-idx
+          (replace-at sent (cons germ (gar section)) germ-idx)
+            links chosen left-wall?)
+        (add-words section target-cntrs germ-idx sent links chosen left-wall?))
 
       (if (not complete?)
         (begin
@@ -138,6 +193,15 @@
 (define (add-words section target-cntrs germ-idx sent links chosen left-wall-added?)
   (define reject-section? #f)
 
+  (define (is-target-cntr? cntr)
+    (any
+      (lambda (t-cntr)
+        (if (pair? t-cntr)
+          (or (equal? cntr (car t-cntr))
+              (equal? cntr (cdr t-cntr)))
+          (equal? cntr t-cntr)))
+      target-cntrs))
+
   ; For adding words to the left of the germ
   (define (add-to-left l-cntrs from-idx)
     (if (null? l-cntrs)
@@ -146,7 +210,7 @@
             (to-idx germ-idx)
             (exist-pos (list))
             (new-pos (list)))
-        (if (member l-cntr target-cntrs)
+        (if (is-target-cntr? l-cntr)
           ; If the current word has already linked to this
           ; germ, no operation is needed, just make sure the
           ; next word will be added to its right
@@ -156,8 +220,11 @@
                 (find
                   (lambda (link)
                     (and (= (cdr link) germ-idx)
-                         (equal? (list-ref sent (car link))
-                                 (gar l-cntr))))
+                         (let ((w (list-ref sent (car link)))
+                               (cw (gar l-cntr)))
+                           (if (pair? w)
+                             (or (equal? (car w) cw) (equal? (cdr w) cw))
+                             (equal? w cw)))))
                   links)))
             (format #t "---> Already added ~a- at ~d\n"
               (cog-name (gar l-cntr)) from-idx)
@@ -170,14 +237,17 @@
             ; the current word will be added to the left of the next one,
             ; as we are going from far to near
             (if (and (> (length l-cntrs) 1)
-                     (member (list-ref l-cntrs 1) target-cntrs))
+                     (is-target-cntr? (list-ref l-cntrs 1)))
               (set! to-idx
                 (car
                   (find
                     (lambda (link)
                       (and (= (cdr link) germ-idx)
-                           (equal? (list-ref sent (car link))
-                                   (gar (list-ref l-cntrs 1)))))
+                           (let ((w (list-ref sent (car link)))
+                                 (cw (gar (list-ref l-cntrs 1))))
+                             (if (pair? w)
+                               (or (equal? (car w) cw) (equal? (cdr w) cw))
+                               (equal? w cw)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; If it's the LEFT-WALL, make sure it's added to position 0, always
@@ -262,15 +332,18 @@
         ; If the current word has already linked to this
         ; germ, no operation is needed, just make sure the
         ; next word will be added to its right
-        (if (member r-cntr target-cntrs)
+        (if (is-target-cntr? r-cntr)
           (begin
             (set! from-idx
               (cdr
                 (find
                   (lambda (link)
                     (and (= (car link) germ-idx)
-                         (equal? (list-ref sent (cdr link))
-                                 (gar r-cntr))))
+                         (let ((w (list-ref sent (cdr link)))
+                               (cw (gar r-cntr)))
+                           (if (pair? w)
+                             (or (equal? (car w) cw) (equal? (cdr w) cw))
+                             (equal? w cw)))))
                   links)))
             (format #t "---> Already added ~a+ at ~d\n"
               (cog-name (gar r-cntr)) from-idx)
@@ -282,14 +355,17 @@
             ; the current word will be added to the left of the next one,
             ; as we are going from far to near
             (if (and (> (length r-cntrs) 1)
-                     (member (list-ref r-cntrs 1) target-cntrs))
+                     (is-target-cntr? (list-ref r-cntrs 1)))
               (set! to-idx
                 (cdr
                   (find
                     (lambda (link)
                       (and (= (car link) germ-idx)
-                           (equal? (list-ref sent (cdr link))
-                                   (gar (list-ref r-cntrs 1)))))
+                           (let ((w (list-ref sent (cdr link)))
+                                 (cw (gar (list-ref r-cntrs 1))))
+                             (if (pair? w)
+                               (or (equal? (car w) cw) (equal? (cdr w) cw))
+                               (equal? w cw)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; Go through from 'from-idx' to 'to-index' and see where we
@@ -393,7 +469,13 @@
 ; ---------- Utilities ---------- ;
 ; For debugging
 (define (print-state sent links chosen)
-  (format #t "Sentence: ~a\n" (map cog-name sent))
+  (format #t "Sentence: ~a\n"
+    (map
+      (lambda (w)
+        (if (pair? w)
+          (cons (cog-name (car w)) (cog-name (cdr w)))
+          (cog-name w)))
+      sent))
   (format #t "Links: ~a\n"
     (sort links
       (lambda (x y)
@@ -471,3 +553,15 @@
         (list elmt)
         (list-tail lst pos))
       (append lst (list elmt)))))
+
+; Replace the element at the particular position of the given list
+(define (replace-at lst elmt pos)
+  (append (list-head lst pos) (list elmt) (list-tail lst (1+ pos))))
+
+; Randomly pick one of the WordNodes in the given WordClassNode
+(define (pick-word-from-class class)
+  (let ((word-picked
+          (rand-pick (cog-chase-link 'MemberLink 'WordNode class))))
+    (format #t "---> Picked \"~a\" from the class \"~a\"\n"
+      (cog-name word-picked) (cog-name class))
+    word-picked))
