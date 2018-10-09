@@ -537,7 +537,7 @@
     (- (if rand rand (rand-num (apply + weights)))
        (car weights)))
 
-  (if (< new-rand 0)
+  (if (or (= (length lst) 1) (< new-rand 0))
     (car lst)
     (weighted-pick (cdr lst) (cdr weights) new-rand)))
 
