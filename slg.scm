@@ -96,7 +96,9 @@
   ; to even if the word-classes may be hierarchical in structure
   (define sections
     (if (pair? germ)
-      (map get-germ-sections (list (car germ) (cdr germ)))
+      (append-map
+        get-germ-sections
+        (list (car germ) (cdr germ)))
       (append-map
         get-germ-sections
         (append
@@ -119,8 +121,8 @@
           ((= germ-idx (car l))
            (let ((w (list-ref sent (cdr l))))
              ; If it's a WordNode-WordClassNode pair
-             ; make this target connector as a pair, and
-             ; the Sections we want only need to have either
+             ; make this target connector a pair, and the
+             ; Sections we want only need to have either
              ; one of them
              (if (pair? w)
                (list
@@ -131,8 +133,8 @@
           ((= germ-idx (cdr l))
            (let ((w (list-ref sent (car l))))
              ; If it's a WordNode-WordClassNode pair
-             ; make this target connector as a pair, and
-             ; the Sections we want only need to have either
+             ; make this target connector a pair, and the
+             ; Sections we want only need to have either
              ; one of them
              (if (pair? w)
                (list
@@ -150,10 +152,24 @@
         (define s-cntrs (cog-outgoing-set (gdr section)))
         (every
           (lambda (t-cntr)
-            (if (pair? t-cntr)
-              (or (member (car t-cntr) s-cntrs)
-                  (member (cdr t-cntr) s-cntrs))
-              (member t-cntr s-cntrs)))
+            (cond
+              ; If the target connector is a pair, it needs
+              ; to have either one
+              ((pair? t-cntr)
+               (or (member (car t-cntr) s-cntrs)
+                   (member (cdr t-cntr) s-cntrs)))
+              ; If the target connector is a class, it has to
+              ; have either a connector of the same class, or
+              ; a word that belongs to that class
+              ((equal? 'WordClassNode (cog-type (gar t-cntr)))
+               (or (member t-cntr s-cntrs)
+                   (any
+                     (lambda (s-cntr)
+                       (word-in-class? (gar s-cntr) (gar t-cntr)))
+                     s-cntrs)))
+              ; Otherwise, just check if it has the exact same
+              ; connector
+              (else (member t-cntr s-cntrs))))
           target-cntrs))
       sections))
 
@@ -165,12 +181,17 @@
         (lambda (s) (cog-tv-count (cog-tv s)))
         candidate-sections)))
 
-  (format #t "\n>> ~a (~d) <<\n" (cog-name germ) germ-idx)
+  (format #t "\n>> ~a (~d) <<\n"
+    (if (pair? germ)
+      (map cog-name (list (car germ) (cdr germ)))
+      (cog-name germ))
+    germ-idx)
   (format #t "Remaining Sections = ~d\n" (length filtered-sections))
 
   (while (not (or complete? (null? filtered-sections)))
     (let ((section (pick-section filtered-sections)))
       (if (and (equal? 'WordClassNode (cog-type (gar section)))
+               (not (pair? germ))
                (equal? 'WordNode (cog-type germ)))
         ; If the 'germ' being passed is a word, while the actual germ of
         ; the Section selected is a word-class, record both the word
@@ -220,11 +241,8 @@
                 (find
                   (lambda (link)
                     (and (= (cdr link) germ-idx)
-                         (let ((w (list-ref sent (car link)))
-                               (cw (gar l-cntr)))
-                           (if (pair? w)
-                             (or (equal? (car w) cw) (equal? (cdr w) cw))
-                             (equal? w cw)))))
+                         (is-word-or-in-class?
+                           (list-ref sent (car link)) (gar l-cntr))))
                   links)))
             (format #t "---> Already added ~a- at ~d\n"
               (cog-name (gar l-cntr)) from-idx)
@@ -243,11 +261,9 @@
                   (find
                     (lambda (link)
                       (and (= (cdr link) germ-idx)
-                           (let ((w (list-ref sent (car link)))
-                                 (cw (gar (list-ref l-cntrs 1))))
-                             (if (pair? w)
-                               (or (equal? (car w) cw) (equal? (cdr w) cw))
-                               (equal? w cw)))))
+                           (is-word-or-in-class?
+                             (list-ref sent (car link))
+                             (gar (list-ref l-cntrs 1)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; If it's the LEFT-WALL, make sure it's added to position 0, always
@@ -270,7 +286,7 @@
                 ; in the sentence that hasn't been linked with the current
                 ; germ, but it's valid to do so
                 (if (and (not (link-cross? (cons i germ-idx) links))
-                         (equal? (list-ref sent i) (gar l-cntr)))
+                         (is-word-or-in-class? (list-ref sent i) (gar l-cntr)))
                   (set! exist-pos (insert-at exist-pos i))
                   (format #t "X existing word\n"))
                 ; Apart from the above it's almost always possible
@@ -291,9 +307,23 @@
               (if (and (not (null? exist-pos))
                        (occur? prob-link-exist))
                 ; Link to an existing word in the sentence
-                (let ((pos-picked (rand-pick exist-pos)))
+                (let* ((pos-picked (rand-pick exist-pos))
+                       (wi (list-ref sent pos-picked))
+                       (cntr-w (gar l-cntr))
+                       (cntr-type (cog-type cntr-w))
+                       (wi-type (cog-type wi)))
                   (format #t "exist-pos: ~a\nnew-pos: ~a\npos-picked: ~d\n"
                     exist-pos new-pos pos-picked)
+                  ; Record both the word and the word-class if we are matching
+                  ; a word to a word-class or visa versa
+                  (if (not (pair? wi))
+                    (cond
+                      ((and (equal? 'WordClassNode cntr-type)
+                            (equal? 'WordNode wi-type))
+                       (set! sent (replace-at sent (cons wi cntr-w) pos-picked)))
+                      ((and (equal? 'WordNode cntr-type)
+                            (equal? 'WordClassNode (cog-type wi)))
+                       (set! sent (replace-at sent (cons cntr-w wi) pos-picked)))))
                   ; Update the links but no new words will be added
                   (set! links (insert-at links (cons pos-picked germ-idx)))
                   ; Was that the LEFT-WALL?
@@ -339,11 +369,8 @@
                 (find
                   (lambda (link)
                     (and (= (car link) germ-idx)
-                         (let ((w (list-ref sent (cdr link)))
-                               (cw (gar r-cntr)))
-                           (if (pair? w)
-                             (or (equal? (car w) cw) (equal? (cdr w) cw))
-                             (equal? w cw)))))
+                         (is-word-or-in-class?
+                           (list-ref sent (cdr link)) (gar r-cntr))))
                   links)))
             (format #t "---> Already added ~a+ at ~d\n"
               (cog-name (gar r-cntr)) from-idx)
@@ -361,11 +388,9 @@
                   (find
                     (lambda (link)
                       (and (= (car link) germ-idx)
-                           (let ((w (list-ref sent (cdr link)))
-                                 (cw (gar (list-ref r-cntrs 1))))
-                             (if (pair? w)
-                               (or (equal? (car w) cw) (equal? (cdr w) cw))
-                               (equal? w cw)))))
+                           (is-word-or-in-class?
+                             (list-ref sent (cdr link))
+                             (gar (list-ref r-cntrs 1)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; Go through from 'from-idx' to 'to-index' and see where we
@@ -378,7 +403,7 @@
               ; germ, but it's valid to do so
               (if (and (not (link-cross? (cons germ-idx i) links))
                        (< i (length sent))
-                       (equal? (list-ref sent i) (gar r-cntr)))
+                       (is-word-or-in-class? (list-ref sent i) (gar r-cntr)))
                 (set! exist-pos (insert-at exist-pos i))
                 (format #t "X existing word\n"))
               ; Apart from the above it's almost always possible
@@ -399,9 +424,23 @@
               (if (and (not (null? exist-pos))
                        (occur? prob-link-exist))
                 ; Link to an existing word in the sentence
-                (let ((pos-picked (rand-pick exist-pos)))
+                (let* ((pos-picked (rand-pick exist-pos))
+                       (wi (list-ref sent pos-picked))
+                       (cntr-w (gar r-cntr))
+                       (cntr-type (cog-type cntr-w))
+                       (wi-type (cog-type wi)))
                   (format #t "exist-pos: ~a\nnew-pos: ~a\npos-picked: ~d\n"
                     exist-pos new-pos pos-picked)
+                  ; Record both the word and the word-class if we are matching
+                  ; a word to a word-class or visa versa
+                  (if (not (pair? wi))
+                    (cond
+                      ((and (equal? 'WordClassNode cntr-type)
+                            (equal? 'WordNode wi-type))
+                       (set! sent (replace-at sent (cons wi cntr-w) pos-picked)))
+                      ((and (equal? 'WordNode cntr-type)
+                            (equal? 'WordClassNode (cog-type wi)))
+                       (set! sent (replace-at sent (cons cntr-w wi) pos-picked)))))
                   ; Update the links but no new words will be added
                   (set! links (insert-at links (cons germ-idx pos-picked)))
                   ; Continue, from the right of this word
@@ -558,6 +597,10 @@
 (define (replace-at lst elmt pos)
   (append (list-head lst pos) (list elmt) (list-tail lst (1+ pos))))
 
+; Check if the word is a member of the given class
+(define (word-in-class? word class)
+  (member word (cog-chase-link 'MemberLink 'WordNode class)))
+
 ; Randomly pick one of the WordNodes in the given WordClassNode
 (define (pick-word-from-class class)
   (let ((word-picked
@@ -565,3 +608,16 @@
     (format #t "---> Picked \"~a\" from the class \"~a\"\n"
       (cog-name word-picked) (cog-name class))
     word-picked))
+
+; Check if two words are identical
+; 'wcp' can be a (WordNode . WordClassNode) pair, or just either one
+; 'wc' can be either a WordNode or a WordClassNode, but not a pair
+(define (is-word-or-in-class? wcp wc)
+  (if (pair? wcp)
+    (or (equal? wc (car wcp))
+        (equal? wc (cdr wcp))
+        (word-in-class? (car wcp) wc)
+        (word-in-class? wc (cdr wcp)))
+    (or (equal? wcp wc)
+        (word-in-class? wcp wc)
+        (word-in-class? wc wcp))))
