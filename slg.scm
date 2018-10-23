@@ -32,6 +32,11 @@
   One or more words can be passed to the function as SEEDS,
   the sentence being generated will grow from the SEEDS.
 
+  SEEDS can either be atoms (WordNode/WordClassNode), or
+  strings, but not a mix of both. If strings are passed,
+  they will all be treated as words. Categories, aka
+  word classes, can only be passed as atoms.
+
   The order of the SEEDS being passed will be perserved
   in the sentence being generated, based on the current
   implementation.
@@ -45,11 +50,13 @@
 
   ; Start the actual generation
   (generate
-    (map
-      WordNode
+    (cond
       ; If no seed is given,
       ; start generating from the LEFT-WALL
-      (if (null? seeds) (list left-wall) seeds))
+      ((null? seeds) (list (Word left-wall)))
+      ((every cog-atom? seeds) seeds)
+      ((every string? seeds) (map WordNode seeds))
+      (else (throw 'WrongInputType seeds)))
     (list)
     (list)
     (null? seeds))
