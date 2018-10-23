@@ -310,8 +310,7 @@
                 (let* ((pos-picked (rand-pick exist-pos))
                        (wi (list-ref sent pos-picked))
                        (cntr-w (gar l-cntr))
-                       (cntr-type (cog-type cntr-w))
-                       (wi-type (cog-type wi)))
+                       (cntr-type (cog-type cntr-w)))
                   (format #t "exist-pos: ~a\nnew-pos: ~a\npos-picked: ~d\n"
                     exist-pos new-pos pos-picked)
                   ; Record both the word and the word-class if we are matching
@@ -319,7 +318,7 @@
                   (if (not (pair? wi))
                     (cond
                       ((and (equal? 'WordClassNode cntr-type)
-                            (equal? 'WordNode wi-type))
+                            (equal? 'WordNode (cog-type wi)))
                        (set! sent (replace-at sent (cons wi cntr-w) pos-picked)))
                       ((and (equal? 'WordNode cntr-type)
                             (equal? 'WordClassNode (cog-type wi)))
@@ -427,8 +426,7 @@
                 (let* ((pos-picked (rand-pick exist-pos))
                        (wi (list-ref sent pos-picked))
                        (cntr-w (gar r-cntr))
-                       (cntr-type (cog-type cntr-w))
-                       (wi-type (cog-type wi)))
+                       (cntr-type (cog-type cntr-w)))
                   (format #t "exist-pos: ~a\nnew-pos: ~a\npos-picked: ~d\n"
                     exist-pos new-pos pos-picked)
                   ; Record both the word and the word-class if we are matching
@@ -436,7 +434,7 @@
                   (if (not (pair? wi))
                     (cond
                       ((and (equal? 'WordClassNode cntr-type)
-                            (equal? 'WordNode wi-type))
+                            (equal? 'WordNode (cog-type wi)))
                        (set! sent (replace-at sent (cons wi cntr-w) pos-picked)))
                       ((and (equal? 'WordNode cntr-type)
                             (equal? 'WordClassNode (cog-type wi)))
