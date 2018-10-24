@@ -35,7 +35,7 @@
   SEEDS can either be atoms (WordNode/WordClassNode), or
   strings, but not a mix of both. If strings are passed,
   they will all be treated as words. Categories, aka
-  word classes, can only be passed as atoms.
+  word classes, can only be passed as atoms (WordClassNode).
 
   The order of the SEEDS being passed will be perserved
   in the sentence being generated, based on the current
