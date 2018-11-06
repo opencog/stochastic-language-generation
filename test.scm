@@ -77,6 +77,20 @@
   (make-section tennis (list played) (list))
   (make-section qmark (list lw) (list)))
 
+(define (load-data-4)
+  (define kay (W "Kay"))
+  (define teaches (W "teaches"))
+  (define yoga (W "yoga"))
+  (define female (WC "female"))
+  (define verb (WC "verb"))
+  (define practice (WC "practice"))
+  (MemberLink kay female)
+  (MemberLink teaches verb)
+  (MemberLink yoga practice)
+  (make-section female (list) (list verb yoga))
+  (make-section verb (list female) (list practice))
+  (make-section practice (list female verb) (list)))
+
 ; ---------- Test ---------- ;
 (opencog-test-runner)
 
@@ -116,5 +130,13 @@
 (test-equal (list) (slg "he"))
 (test-equal (list) (slg "played"))
 (test-equal (list) (slg "tennis"))
+(clear-sections)
+
+; Also try to generate sentences with categories in place.
+(load-data-4)
+(test-equal "Kay teaches yoga" (slg "Kay"))
+(test-equal "Kay teaches yoga" (slg "teaches"))
+(test-equal "Kay teaches yoga" (slg "yoga"))
+(clear-sections)
 
 (test-end slg-test)
