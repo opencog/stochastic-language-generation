@@ -1,9 +1,13 @@
 (use-modules
   (opencog)
   (opencog nlp)
+  (opencog test-runner)
   (srfi srfi-64))
 
 ; ---------- Utilities ---------- ;
+(define slg-test "Stochastic Language Generation")
+(define left-wall "###LEFT-WALL###")
+
 (define (W word)
   (WordNode word (ctv 1 0 (random 1000))))
 
@@ -28,34 +32,24 @@
           r-cntrs))))
 
 ; ---------- Data ---------- ;
-(define (load-slg-test-1-data)
-  (make-section (W "I") (list) (list (W "like")))
-  (make-section (W "I") (list (W "###LEFT-WALL###")) (list (W "am")))
-  (make-section (W "I") (list) (list (W "eat")))
-  (make-section (W "I") (list) (list (W "love")))
-  (make-section (W "I") (list) (list (W "hate")))
-  (make-section (W "like") (list (W "I")) (list (W "cats")))
-  (make-section (W "like") (list (W "they")) (list))
-  (make-section (W "like") (list (W "we")) (list))
-  (make-section (W "cats") (list (W "like")) (list))
-  (make-section (W "cats") (list (W "break")) (list))
-  (make-section (W "cats") (list (W "love")) (list))
-  (make-section (W "cats") (list (W "hate")) (list))
-)
+(define (load-data-1)
+  (make-section (W left-wall) (list) (list (W "well")))
+  (make-section (W "well") (list (W left-wall)) (list (W "play")))
+  (make-section (W "play") (list (W "well")) (list)))
 
 ; ---------- Test ---------- ;
-; Given the Sections, it should be able to generate
-; one and only one sentence from them, backtrack and
-; try again if it hits a dead-end, or end the generation
-; if it's not possible to generate any sentence from
-; the given seed(s)
-(test-begin "slg-test-1")
-(load-slg-test-1-data)
-(test-equal "I like cats" (slg "I"))
-(test-equal "I like cats" (slg "like"))
-(test-equal "I like cats" (slg "cats"))
-(test-equal "I like cats" (slg "I" "like"))
-(test-equal "I like cats" (slg "I" "cats"))
-(test-equal "I like cats" (slg "like" "cats"))
-(test-equal "I like cats" (slg "I" "like" "cats"))
-(test-end "slg-test-1")
+(opencog-test-runner)
+
+(test-begin slg-test)
+
+; First of all, given the Sections in data-1, it should be
+; able to generate the expected sentence, straightforwardly.
+; No backtracking is required.
+; Also test when different number of seeds are given.
+(load-data-1)
+(test-equal "###LEFT-WALL### well play" (slg))
+(test-equal "###LEFT-WALL### well play" (slg "well"))
+(test-equal "###LEFT-WALL### well play" (slg "play"))
+(test-equal "###LEFT-WALL### well play" (slg "well" "play"))
+
+(test-end slg-test)
