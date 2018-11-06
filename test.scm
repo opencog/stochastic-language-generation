@@ -33,16 +33,24 @@
 
 ; ---------- Data ---------- ;
 (define (load-data-1)
-  (make-section (W left-wall) (list) (list (W "well")))
-  (make-section (W "well") (list (W left-wall)) (list (W "play")))
-  (make-section (W "play") (list (W "well")) (list)))
+  (define lw (W left-wall))
+  (define well (W "well"))
+  (define play (W "play"))
+  (make-section lw (list) (list well))
+  (make-section well (list lw) (list play))
+  (make-section play (list well) (list)))
 
 (define (load-data-2)
-  (make-section (W left-wall) (list) (list (W "I") (W "like") (W ".")))
-  (make-section (W "I") (list (W left-wall)) (list (W "like")))
-  (make-section (W "like") (list (W left-wall) (W "I")) (list (W "cats")))
-  (make-section (W "cats") (list (W "like")) (list))
-  (make-section (W ".") (list (W left-wall)) (list)))
+  (define lw (W left-wall))
+  (define i (W "I"))
+  (define like (W "like"))
+  (define cats (W "cats"))
+  (define dot (W "."))
+  (make-section lw (list) (list i like dot))
+  (make-section i (list lw) (list like))
+  (make-section like (list lw i) (list cats))
+  (make-section cats (list like) (list))
+  (make-section dot (list lw) (list)))
 
 ; ---------- Test ---------- ;
 (opencog-test-runner)
