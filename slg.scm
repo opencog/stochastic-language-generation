@@ -360,12 +360,11 @@
           ; Otherwise, find a valid spot to add this word to the sentence
           (begin
             (format #t "---> Trying to add: ~a-\n" (cog-name (gar l-cntr)))
-            ; The order matters, so before exploring, check if the next
-            ; word has already linked to this germ, and if so, make sure
-            ; the current word will be added to the left of the next one,
+            ; The order matters, so before exploring, check if any of the
+            ; remaining words has already linked to this germ, and if so,
+            ; make sure the current word will be added to the left of that
             ; as we are going from far to near
-            (if (and (> (length l-cntrs) 1)
-                     (is-target-cntr? (list-ref l-cntrs 1)))
+            (if (find is-target-cntr? l-cntrs)
               (set! to-idx
                 (car
                   (find
@@ -373,7 +372,7 @@
                       (and (= (cdr link) germ-idx)
                            (is-word-or-in-class?
                              (list-ref sent (car link))
-                             (gar (list-ref l-cntrs 1)))))
+                             (gar (find is-target-cntr? l-cntrs)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; If it's the LEFT-WALL, make sure it's added to position 0, always
@@ -486,12 +485,11 @@
             (add-to-right (cdr r-cntrs) (1+ from-idx)))
           (begin
             (format #t "---> Trying to add: ~a+\n" (cog-name (gar r-cntr)))
-            ; The order matters, so before exploring, check if the next
-            ; word has already linked to this germ, and if so, make sure
-            ; the current word will be added to the left of the next one,
+            ; The order matters, so before exploring, check if any of the
+            ; remaining words has already linked to this germ, and if so,
+            ; make sure the current word will be added to the left of that,
             ; as we are going from far to near
-            (if (and (> (length r-cntrs) 1)
-                     (is-target-cntr? (list-ref r-cntrs 1)))
+            (if (find is-target-cntr? r-cntrs)
               (set! to-idx
                 (cdr
                   (find
@@ -499,7 +497,7 @@
                       (and (= (car link) germ-idx)
                            (is-word-or-in-class?
                              (list-ref sent (cdr link))
-                             (gar (list-ref r-cntrs 1)))))
+                             (gar (find is-target-cntr? r-cntrs)))))
                     links))))
             (format #t "Going to explore from ~d to ~d\n" from-idx to-idx)
             ; Go through from 'from-idx' to 'to-index' and see where we
