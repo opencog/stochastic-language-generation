@@ -31,6 +31,9 @@
             (ConnectorDir "+")))
           r-cntrs))))
 
+(define (clear-sections)
+  (for-each cog-extract-recursive (cog-get-atoms 'Section)))
+
 ; ---------- Data ---------- ;
 (define (load-data-1)
   (define lw (W left-wall))
@@ -66,6 +69,7 @@
 (test-equal "###LEFT-WALL### well play" (slg "well"))
 (test-equal "###LEFT-WALL### well play" (slg "play"))
 (test-equal "###LEFT-WALL### well play" (slg "well" "play"))
+(clear-sections)
 
 ; Slightly more complicated, some of the Sections in data-2
 ; may link to more than one word on the same direction (left/right),
@@ -76,5 +80,6 @@
 (test-equal "###LEFT-WALL### I like cats ." (slg "like"))
 (test-equal "###LEFT-WALL### I like cats ." (slg "cats"))
 (test-equal "###LEFT-WALL### I like cats ." (slg "."))
+(clear-sections)
 
 (test-end slg-test)
