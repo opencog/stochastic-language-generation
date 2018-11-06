@@ -55,6 +55,28 @@
   (make-section cats (list like) (list))
   (make-section dot (list lw) (list)))
 
+(define (load-data-3)
+  (define lw (W left-wall))
+  (define she (W "she"))
+  (define he (W "he"))
+  (define tried (W "tried"))
+  (define played (W "played"))
+  (define cheese (W "cheese"))
+  (define tennis (W "tennis"))
+  (define qmark (W "?"))
+  (make-section lw (list) (list she tried qmark))
+  (make-section lw (list) (list he played qmark))
+  (make-section she (list lw) (list tried))
+  (make-section she (list lw) (list played))
+  (make-section he (list lw) (list tried))
+  (make-section tried (list lw she) (list cheese))
+  (make-section tried (list lw he) (list tennis))
+  (make-section played (list lw he) (list cheese))
+  (make-section cheese (list tried) (list))
+  (make-section cheese (list played) (list))
+  (make-section tennis (list played) (list))
+  (make-section qmark (list lw) (list)))
+
 ; ---------- Test ---------- ;
 (opencog-test-runner)
 
@@ -81,5 +103,18 @@
 (test-equal "###LEFT-WALL### I like cats ." (slg "cats"))
 (test-equal "###LEFT-WALL### I like cats ." (slg "."))
 (clear-sections)
+
+; Sometimes it may hit a dead-end, and it should be able to backtrack
+; and try again with a different Section, or give up if it has already
+; try every single one of them.
+(load-data-3)
+(test-equal "###LEFT-WALL### she tried cheese ?" (slg))
+(test-equal "###LEFT-WALL### she tried cheese ?" (slg "she"))
+(test-equal "###LEFT-WALL### she tried cheese ?" (slg "tried"))
+(test-equal "###LEFT-WALL### she tried cheese ?" (slg "cheese"))
+(test-equal "###LEFT-WALL### she tried cheese ?" (slg "?"))
+(test-equal (list) (slg "he"))
+(test-equal (list) (slg "played"))
+(test-equal (list) (slg "tennis"))
 
 (test-end slg-test)
