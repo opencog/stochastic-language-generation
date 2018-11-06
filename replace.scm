@@ -3,23 +3,12 @@
   (opencog exec)
   (opencog nlp)
   (opencog nlp lg-parse)
+  (ice-9 optargs)
   (srfi srfi-1))
 
-(define lg-dict "en")
-
-(define-public (set-lg-dict dict)
+(define*-public (slg-replace sentence #:optional (lg-dict "en"))
 "
-  set-lg-dict DICT
-
-  Set the Link Grammar dictionary that will be used by the Link Parser.
-  It's assumed that the dictionary is placed under \"/usr/local/share/link-grammar\",
-  with all the other required files (like those 4.0.*) in place already.
-"
-  (set! lg-dict dict))
-
-(define-public (slg-replace sentence)
-"
-  slg-replace SENTENCE
+  slg-replace SENTENCE [LG-DICT]
 
   Replace one or more words in SENTENCE with other words that
   belong to the same linguistic categories.
@@ -34,8 +23,13 @@
   \"this\" and \"that\" are assumed to be in the same category, so a sentence
   like \"this is a cat\" may be transformed into \"that is a cat\".
 
-  It's recommended to set the LG dictionary first using `set-lg-dict`, otherwise
-  \"en\" will be used as the default dictionary.
+  An optional argument LG-DICT can be passed to indicate what Link Grammar
+  dictionary will be used by the Link Parser for parsing this sentence. The
+  default dictionary is \"en\".
+
+  If a custom LG dictionary is passed, it's assumed that the dictionary is
+  placed under \"/usr/local/share/link-grammar\", with all the other required
+  files (like those 4.0.*) in place already.
 "
   ; Parse the sentence using the given dictionary
   (define sent-node
@@ -110,5 +104,4 @@
           (if (equal? chosen-word wi)
             (car (cog-chase-link 'ReferenceLink 'WordNode chosen-member))
             (car (cog-chase-link 'ReferenceLink 'WordNode wi)))))
-      words))
-)
+      words)))
