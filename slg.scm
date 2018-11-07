@@ -130,28 +130,31 @@
 
     ; Find other members of the chosen category
     (define members
-      (filter
-        (lambda (m)
-          (not (equal?
-            (word-inst-get-word chosen-word)
-            (word-inst-get-word m))))
-        (map
-          (lambda (l) (if is-source? (gar l) (gdr l)))
-          (cog-outgoing-set
-            (cog-execute!
-              (Get
-                (VariableList
-                  (TypedVariable
-                    (Variable "$source")
-                    (Type "WordInstanceNode"))
-                  (TypedVariable
-                    (Variable "$target")
-                    (Type "WordInstanceNode")))
-                (Evaluation
-                  (gar chosen-category)
-                  (List
-                    (Variable "$source")
-                    (Variable "$target")))))))))
+      (delete-duplicates
+        (filter
+          (lambda (m)
+            (not (equal?
+              (word-inst-get-word chosen-word)
+              (word-inst-get-word m))))
+          (map
+            (lambda (l) (if is-source? (gar l) (gdr l)))
+            (cog-outgoing-set
+              (cog-execute!
+                (Get
+                  (VariableList
+                    (TypedVariable
+                      (Variable "$source")
+                      (Type "WordInstanceNode"))
+                    (TypedVariable
+                      (Variable "$target")
+                      (Type "WordInstanceNode")))
+                  (Evaluation
+                    (gar chosen-category)
+                    (List
+                      (Variable "$source")
+                      (Variable "$target"))))))))
+        (lambda (x y)
+          (equal? (word-inst-get-word x) (word-inst-get-word y)))))
 
     (if (null? members)
       ; If there is no other members in the same category,
