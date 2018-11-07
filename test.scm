@@ -14,7 +14,7 @@
 (define (WC word-class)
   (WordClassNode word-class))
 
-(define* (make-section germ l-cntrs r-cntrs #:optional (cnt (random 1000)))
+(define* (make-section germ l-cntrs r-cntrs #:optional (cnt (random 100)))
   (Section (ctv 1 0 cnt)
     germ
     (ConnectorSeq
@@ -163,6 +163,17 @@
 (test-equal "Kay teaches yoga" (slg "Kay"))
 (test-equal "Kay teaches yoga" (slg "teaches"))
 (test-equal "Kay teaches yoga" (slg "yoga"))
+(clear-sections)
+
+; 'slg' also accept atoms (WordNode / WordClassNode) as seeds, reuse data-5
+; to test it.
+(load-data-5)
+(test-equal "Kay teaches yoga" (slg (W "Kay")))
+(test-equal "Kay teaches yoga" (slg (W "teaches")))
+(test-equal "Kay teaches yoga" (slg (W "yoga")))
+(test-equal "Kay teaches yoga" (slg (WC "female")))
+(test-equal "Kay teaches yoga" (slg (WC "action")))
+(test-equal "Kay teaches yoga" (slg (WC "practice")))
 (clear-sections)
 
 (test-end slg-test)
