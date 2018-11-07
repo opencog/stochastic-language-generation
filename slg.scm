@@ -110,8 +110,7 @@
   (define (generate-output-sentence word-instances)
     (string-join
       (map
-        (lambda (wi)
-          (cog-name (car (cog-chase-link 'ReferenceLink 'WordNode wi))))
+        (lambda (wi) (cog-name (word-inst-get-word wi)))
         word-instances)))
 
   (define* (pick-and-replace words #:optional (new-sent words))
@@ -127,16 +126,15 @@
     (define chosen-category (rand-pick categories))
 
     ; Check if the chosen word is the source of the chosen LG relationship
-    (define is-source?
-      (equal? (gadr chosen-category) chosen-word))
+    (define is-source? (equal? (gadr chosen-category) chosen-word))
 
     ; Find other members of the chosen category
     (define members
       (filter
         (lambda (m)
           (not (equal?
-            (car (cog-chase-link 'ReferenceLink 'WordNode chosen-word))
-            (car (cog-chase-link 'ReferenceLink 'WordNode m)))))
+            (word-inst-get-word chosen-word)
+            (word-inst-get-word m))))
         (map
           (lambda (l) (if is-source? (gar l) (gdr l)))
           (cog-outgoing-set
@@ -159,9 +157,13 @@
       ; If there is no other members in the same category,
       ; try again with a different word! Unless there is
       ; no more unexplored words.
-      (if (= 1 (length words))
-        (generate-output-sentence new-sent)
-        (pick-and-replace (delete chosen-word words) new-sent))
+      (begin
+        (format #t "No members found form \"~a\"\nSentence: ~a\n"
+          (cog-name (gar chosen-category))
+          (map cog-name (map word-inst-get-word words-replaced)))
+        (if (= 1 (length words))
+          (generate-output-sentence new-sent)
+          (pick-and-replace (delete chosen-word words) new-sent)))
       ; Otherwise, replace the word in the sentence with
       ; the chosen member.
       (let* ((chosen-member (rand-pick members))
@@ -169,6 +171,11 @@
                (map
                  (lambda (wi) (if (equal? chosen-word wi) chosen-member wi))
                  new-sent)))
+        (format #t "---> Replacing \"~a\" with \"~a\" from \"~a\"\nSentence: ~a\n"
+          (cog-name (word-inst-get-word chosen-word))
+          (cog-name (word-inst-get-word chosen-member))
+          (cog-name (gar chosen-category))
+          (map cog-name (map word-inst-get-word words-replaced)))
         ; Randomly decide whether to continue the process or end it here.
         (if (and (occur? 0.5) (> (length words) 1))
           (pick-and-replace (delete chosen-word words) words-replaced)
@@ -182,6 +189,8 @@
         (LgDict lg-dict)
         (Number 1))))
 
+  (format #t "\n>> ~a <<\n" sentence)
+
   ; Get the full list of words of the sentence, with both
   ; ###LEFT-WALL### and ###RIGHT-WALL### removed, and start
   ; the process.
@@ -189,7 +198,7 @@
     (filter
       (lambda (wi)
         (define nstr
-          (cog-name (car (cog-chase-link 'ReferenceLink 'WordNode wi))))
+          (cog-name (word-inst-get-word wi)))
         (not (or (string=? "###LEFT-WALL###" nstr)
                  (string=? "###RIGHT-WALL###" nstr))))
       (car (sent-get-words-in-order sent-node)))))
