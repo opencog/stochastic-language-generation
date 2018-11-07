@@ -186,12 +186,22 @@
 ; Test basic word replacement -- given a sentence, replace a word in the sentence
 ; by another word that belongs to the same category.
 (load-data-6)
-(define result (slg-replace "this is a test"))
 (test-assert
-  (or (string=? "that is a test" result)
-      (string=? "this was a test" result)
-      (string=? "this is my test" result)
-      (string=? "this is a cat" result)))
+  (member
+    (slg-replace "this is a test")
+    (list
+      "that is a test"
+      "this was a test"
+      "this is my test"
+      "this is a cat"
+      "that was a test"
+      "that is my test"
+      "that is a cat"
+      "this was my test"
+      "this was a cat"
+      "this is my cat"
+      "this was my cat"
+      "that was my cat")))
 (clear)
 
 (test-end slg-test)
