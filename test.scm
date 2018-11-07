@@ -102,6 +102,13 @@
   (make-section action (list kay) (list practice))
   (make-section practice (list female action) (list)))
 
+(define (load-data-6)
+  (cog-execute!
+    (LgParse
+      (Phrase "that was my cat")
+      (LgDict "en")
+      (Number 1))))
+
 ; ---------- Test ---------- ;
 (opencog-test-runner)
 
@@ -175,5 +182,15 @@
 (test-equal "Kay teaches yoga" (slg (WC "action")))
 (test-equal "Kay teaches yoga" (slg (WC "practice")))
 (clear-sections)
+
+; Test basic word replacement -- given a sentence, replace a word in the sentence
+; by another word that belongs to the same category.
+(load-data-6)
+(define result (slg-replace "this is a test"))
+(test-assert
+  (or (string=? "that is a test" result)
+      (string=? "this was a test" result)
+      (string=? "this is my test" result)
+      (string=? "this is a cat" result)))
 
 (test-end slg-test)
