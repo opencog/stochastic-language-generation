@@ -31,9 +31,6 @@
             (ConnectorDir "+")))
           r-cntrs))))
 
-(define (clear-sections)
-  (for-each cog-extract-recursive (cog-get-atoms 'Section)))
-
 ; ---------- Data ---------- ;
 (define (load-data-1)
   (define lw (W left-wall))
@@ -123,7 +120,7 @@
 (test-equal "###LEFT-WALL### well play" (slg "well"))
 (test-equal "###LEFT-WALL### well play" (slg "play"))
 (test-equal "###LEFT-WALL### well play" (slg "well" "play"))
-(clear-sections)
+(clear)
 
 ; Slightly more complicated, some of the Sections in data-2
 ; may link to more than one word on the same direction (left/right),
@@ -134,7 +131,7 @@
 (test-equal "###LEFT-WALL### I like cats ." (slg "like"))
 (test-equal "###LEFT-WALL### I like cats ." (slg "cats"))
 (test-equal "###LEFT-WALL### I like cats ." (slg "."))
-(clear-sections)
+(clear)
 
 ; Sometimes it may hit a dead-end, and it should be able to backtrack
 ; and try again with a different Section.
@@ -154,7 +151,7 @@
 (test-equal (list) (slg "?"))
 ; Same if it's given a seed that doesn't exist in the atomspace.
 (test-equal (list) (slg "asana"))
-(clear-sections)
+(clear)
 
 ; Also try to generate sentences with categories in place. Sections in
 ; data-4 show the relationships between various categories.
@@ -162,7 +159,7 @@
 (test-equal "Jay plays tennis" (slg "Jay"))
 (test-equal "Jay plays tennis" (slg "plays"))
 (test-equal "Jay plays tennis" (slg "tennis"))
-(clear-sections)
+(clear)
 
 ; Similar to the above, but the Sections in data-5 mix words and categories
 ; together.
@@ -170,7 +167,7 @@
 (test-equal "Kay teaches yoga" (slg "Kay"))
 (test-equal "Kay teaches yoga" (slg "teaches"))
 (test-equal "Kay teaches yoga" (slg "yoga"))
-(clear-sections)
+(clear)
 
 ; 'slg' also accept atoms (WordNode / WordClassNode) as seeds, reuse data-5
 ; to test it.
@@ -181,7 +178,7 @@
 (test-equal "Kay teaches yoga" (slg (WC "female")))
 (test-equal "Kay teaches yoga" (slg (WC "action")))
 (test-equal "Kay teaches yoga" (slg (WC "practice")))
-(clear-sections)
+(clear)
 
 ; Test basic word replacement -- given a sentence, replace a word in the sentence
 ; by another word that belongs to the same category.
@@ -192,5 +189,6 @@
       (string=? "this was a test" result)
       (string=? "this is my test" result)
       (string=? "this is a cat" result)))
+(clear)
 
 (test-end slg-test)
