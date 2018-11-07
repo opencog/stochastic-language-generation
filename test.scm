@@ -14,8 +14,8 @@
 (define (WC word-class)
   (WordClassNode word-class))
 
-(define (make-section germ l-cntrs r-cntrs)
-  (Section (ctv 1 0 (random 1000))
+(define* (make-section germ l-cntrs r-cntrs #:optional (cnt (random 1000)))
+  (Section (ctv 1 0 cnt)
     germ
     (ConnectorSeq
       (map
@@ -58,24 +58,21 @@
 (define (load-data-3)
   (define lw (W left-wall))
   (define she (W "she"))
-  (define he (W "he"))
   (define tried (W "tried"))
-  (define played (W "played"))
   (define cheese (W "cheese"))
-  (define tennis (W "tennis"))
   (define qmark (W "?"))
-  (make-section lw (list) (list she tried qmark))
-  (make-section lw (list) (list he played qmark))
-  (make-section she (list lw) (list tried))
-  (make-section she (list lw) (list played))
-  (make-section he (list lw) (list tried))
-  (make-section tried (list lw she) (list cheese))
-  (make-section tried (list lw he) (list tennis))
-  (make-section played (list lw he) (list cheese))
-  (make-section cheese (list tried) (list))
-  (make-section cheese (list played) (list))
-  (make-section tennis (list played) (list))
-  (make-section qmark (list lw) (list)))
+  ; Manipulating the counts just to make sure the "dead-ends"
+  ; will be selected first, so as to test backtracking
+  (make-section lw (list) (list she tried qmark) 0)
+  (make-section lw (list) (list cheese) 100)
+  (make-section she (list lw) (list tried) 0)
+  (make-section she (list) (list cheese qmark) 100)
+  (make-section tried (list lw she) (list cheese) 0)
+  (make-section tried (list) (list qmark) 100)
+  (make-section cheese (list tried) (list) 0)
+  (make-section cheese (list she) (list) 100)
+  (make-section qmark (list lw) (list) 0)
+  (make-section qmark (list cheese) (list) 100))
 
 (define (load-data-4)
   (define kay (W "Kay"))
@@ -119,17 +116,21 @@
 (clear-sections)
 
 ; Sometimes it may hit a dead-end, and it should be able to backtrack
-; and try again with a different Section, or give up if it has already
-; try every single one of them.
+; and try again with a different Section.
 (load-data-3)
 (test-equal "###LEFT-WALL### she tried cheese ?" (slg))
 (test-equal "###LEFT-WALL### she tried cheese ?" (slg "she"))
 (test-equal "###LEFT-WALL### she tried cheese ?" (slg "tried"))
 (test-equal "###LEFT-WALL### she tried cheese ?" (slg "cheese"))
 (test-equal "###LEFT-WALL### she tried cheese ?" (slg "?"))
-(test-equal (list) (slg "he"))
-(test-equal (list) (slg "played"))
-(test-equal (list) (slg "tennis"))
+; Now remove one of the required Sections, it should backtrack and
+; give up eventually
+(cog-extract (make-section (W "cheese") (list (W "tried")) (list)))
+(test-equal (list) (slg))
+(test-equal (list) (slg "she"))
+(test-equal (list) (slg "tried"))
+(test-equal (list) (slg "cheese"))
+(test-equal (list) (slg "?"))
 (clear-sections)
 
 ; Also try to generate sentences with categories in place.
