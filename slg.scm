@@ -107,6 +107,73 @@
   placed under \"/usr/local/share/link-grammar\", with all the other required
   files (like those 4.0.*) in place already.
 "
+  (define (generate-output-sentence word-instances)
+    (string-join
+      (map
+        (lambda (wi)
+          (cog-name (car (cog-chase-link 'ReferenceLink 'WordNode wi))))
+        word-instances)))
+
+  (define* (pick-and-replace words #:optional (new-sent words))
+    ; Randomly pick a word from the word list
+    (define chosen-word (rand-pick words))
+
+    ; Get the categories that the chosen word belongs to, in the form
+    ; of EvaluationLinks
+    (define categories
+      (cog-get-pred chosen-word 'LinkGrammarRelationshipNode))
+
+    ; Randomly pick a category from the category list
+    (define chosen-category (rand-pick categories))
+
+    ; Check if the chosen word is the source of the chosen LG relationship
+    (define is-source?
+      (equal? (gadr chosen-category) chosen-word))
+
+    ; Find other members of the chosen category
+    (define members
+      (filter
+        (lambda (m)
+          (not (equal?
+            (car (cog-chase-link 'ReferenceLink 'WordNode chosen-word))
+            (car (cog-chase-link 'ReferenceLink 'WordNode m)))))
+        (map
+          (lambda (l) (if is-source? (gar l) (gdr l)))
+          (cog-outgoing-set
+            (cog-execute!
+              (Get
+                (VariableList
+                  (TypedVariable
+                    (Variable "$source")
+                    (Type "WordInstanceNode"))
+                  (TypedVariable
+                    (Variable "$target")
+                    (Type "WordInstanceNode")))
+                (Evaluation
+                  (gar chosen-category)
+                  (List
+                    (Variable "$source")
+                    (Variable "$target")))))))))
+
+    (if (null? members)
+      ; If there is no other members in the same category,
+      ; try again with a different word! Unless there is
+      ; no more unexplored words.
+      (if (= 1 (length words))
+        (generate-output-sentence new-sent)
+        (pick-and-replace (delete chosen-word words) new-sent))
+      ; Otherwise, replace the word in the sentence with
+      ; the chosen member.
+      (let* ((chosen-member (rand-pick members))
+             (words-replaced
+               (map
+                 (lambda (wi) (if (equal? chosen-word wi) chosen-member wi))
+                 new-sent)))
+        ; Randomly decide whether to continue the process or end it here.
+        (if (and (occur? 0.5) (> (length words) 1))
+          (pick-and-replace (delete chosen-word words) words-replaced)
+          (generate-output-sentence words-replaced)))))
+
   ; Parse the sentence using the given dictionary
   (define sent-node
     (cog-execute!
@@ -116,71 +183,17 @@
         (Number 1))))
 
   ; Get the full list of words of the sentence, with both
-  ; ###LEFT-WALL### and ###RIGHT-WALL### removed
-  (define words
+  ; ###LEFT-WALL### and ###RIGHT-WALL### removed, and start
+  ; the process.
+  (pick-and-replace
     (filter
       (lambda (wi)
         (define nstr
           (cog-name (car (cog-chase-link 'ReferenceLink 'WordNode wi))))
         (not (or (string=? "###LEFT-WALL###" nstr)
                  (string=? "###RIGHT-WALL###" nstr))))
-      (car (sent-get-words-in-order sent-node))))
+      (car (sent-get-words-in-order sent-node)))))
 
-  ; Randomly pick a word from the word list
-  (define chosen-word
-    (list-ref words (random (length words) (random-state-from-platform))))
-
-  ; Get the categories that the chosen word belongs to, in the form
-  ; of EvaluationLinks
-  (define categories
-    (cog-get-pred chosen-word 'LinkGrammarRelationshipNode))
-
-  ; Randomly pick a category from the category list
-  (define chosen-category
-    (list-ref categories (random (length categories) (random-state-from-platform))))
-
-  ; Check if the chosen word is the source of the chosen LG relationship
-  (define is-source?
-    (equal? (gadr chosen-category) chosen-word))
-
-  ; Find other members of the chosen category
-  (define members
-    (filter
-      (lambda (m)
-        (not (equal?
-          (car (cog-chase-link 'ReferenceLink 'WordNode chosen-word))
-          (car (cog-chase-link 'ReferenceLink 'WordNode m)))))
-      (map
-        (lambda (l) (if is-source? (gar l) (gdr l)))
-        (cog-outgoing-set
-          (cog-execute!
-            (Get
-              (VariableList
-                (TypedVariable
-                  (Variable "$source")
-                  (Type "WordInstanceNode"))
-                (TypedVariable
-                  (Variable "$target")
-                  (Type "WordInstanceNode")))
-              (Evaluation
-                (gar chosen-category)
-                (List
-                  (Variable "$source")
-                  (Variable "$target")))))))))
-
-  ; Randomly pick a member from the member list
-  (define chosen-member
-    (list-ref members (random (length members) (random-state-from-platform))))
-
-  ; Return the final sentence
-  (string-join
-    (map
-      (lambda (wi)
-        (cog-name
-          (if (equal? chosen-word wi)
-            (car (cog-chase-link 'ReferenceLink 'WordNode chosen-member))
-            (car (cog-chase-link 'ReferenceLink 'WordNode wi)))))
-      words)))
 
 ; ---------- Main ---------- ;
 ; Will be called recursively until the generation is complete
