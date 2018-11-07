@@ -160,7 +160,7 @@
       (begin
         (format #t "No members found form \"~a\"\nSentence: ~a\n"
           (cog-name (gar chosen-category))
-          (map cog-name (map word-inst-get-word words-replaced)))
+          (map cog-name (map word-inst-get-word new-sent)))
         (if (= 1 (length words))
           (generate-output-sentence new-sent)
           (pick-and-replace (delete chosen-word words) new-sent)))
