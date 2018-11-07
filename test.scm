@@ -145,6 +145,8 @@
 (test-equal (list) (slg "tried"))
 (test-equal (list) (slg "cheese"))
 (test-equal (list) (slg "?"))
+; Same if it's given a seed that doesn't exist in the atomspace.
+(test-equal (list) (slg "asana"))
 (clear-sections)
 
 ; Also try to generate sentences with categories in place. Sections in
