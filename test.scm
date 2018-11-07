@@ -1,7 +1,10 @@
 (use-modules
   (opencog)
+  (opencog exec)
   (opencog nlp)
+  (opencog nlp lg-parse)
   (opencog test-runner)
+  (ice-9 optargs)
   (srfi srfi-64))
 
 ; ---------- Utilities ---------- ;
