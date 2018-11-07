@@ -75,18 +75,32 @@
   (make-section qmark (list cheese) (list) 100))
 
 (define (load-data-4)
+  (define jay (W "Jay"))
+  (define plays (W "plays"))
+  (define tennis (W "tennis"))
+  (define subj (WC "subject"))
+  (define verb (WC "verb"))
+  (define obj (WC "object"))
+  (MemberLink jay subj)
+  (MemberLink plays verb)
+  (MemberLink tennis obj)
+  (make-section subj (list) (list verb))
+  (make-section verb (list subj) (list obj))
+  (make-section obj (list verb) (list)))
+
+(define (load-data-5)
   (define kay (W "Kay"))
   (define teaches (W "teaches"))
   (define yoga (W "yoga"))
   (define female (WC "female"))
-  (define verb (WC "verb"))
+  (define action (WC "action"))
   (define practice (WC "practice"))
   (MemberLink kay female)
-  (MemberLink teaches verb)
+  (MemberLink teaches action)
   (MemberLink yoga practice)
-  (make-section female (list) (list verb yoga))
-  (make-section verb (list female) (list practice))
-  (make-section practice (list female verb) (list)))
+  (make-section female (list) (list action yoga))
+  (make-section action (list kay) (list practice))
+  (make-section practice (list female action) (list)))
 
 ; ---------- Test ---------- ;
 (opencog-test-runner)
@@ -133,8 +147,17 @@
 (test-equal (list) (slg "?"))
 (clear-sections)
 
-; Also try to generate sentences with categories in place.
+; Also try to generate sentences with categories in place. Sections in
+; data-4 show the relationships between various categories.
 (load-data-4)
+(test-equal "Jay plays tennis" (slg "Jay"))
+(test-equal "Jay plays tennis" (slg "plays"))
+(test-equal "Jay plays tennis" (slg "tennis"))
+(clear-sections)
+
+; Similar to the above, but the Sections in data-5 mix words and categories
+; together.
+(load-data-5)
 (test-equal "Kay teaches yoga" (slg "Kay"))
 (test-equal "Kay teaches yoga" (slg "teaches"))
 (test-equal "Kay teaches yoga" (slg "yoga"))
